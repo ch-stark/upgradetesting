@@ -1,0 +1,181 @@
+apiVersion: policy.open-cluster-management.io/v1
+kind: Policy
+metadata:
+  name: upgrade-01-precheck
+  namespace: upgradetesting
+  labels:
+    upgradetesting.example/phase: precheck
+spec:
+  disabled: false
+  remediationAction: inform
+  policy-templates:
+  - objectDefinition:
+      apiVersion: policy.open-cluster-management.io/v1
+      kind: ConfigurationPolicy
+      metadata:
+        name: upgrade-01-precheck-1
+      spec:
+        remediationAction: inform
+        severity: high
+        evaluationInterval:
+          compliant: 10s
+          noncompliant: 10s
+        object-templates:
+        - complianceType: musthave
+          objectDefinition:
+            apiVersion: v1
+            kind: ConfigMap
+            metadata:
+              name: demo-observation
+              namespace: upgradetesting
+            data:
+              baselineHealthy: 'true'
+              signalsFresh: 'true'
+---
+apiVersion: policy.open-cluster-management.io/v1
+kind: Policy
+metadata:
+  name: upgrade-02-window-admission
+  namespace: upgradetesting
+  labels:
+    upgradetesting.example/phase: admission
+spec:
+  disabled: false
+  remediationAction: inform
+  policy-templates:
+  - objectDefinition:
+      apiVersion: policy.open-cluster-management.io/v1
+      kind: ConfigurationPolicy
+      metadata:
+        name: upgrade-02-window-admission-1
+      spec:
+        remediationAction: inform
+        severity: low
+        evaluationInterval:
+          compliant: 10s
+          noncompliant: 10s
+        object-templates:
+        - complianceType: musthave
+          objectDefinition:
+            apiVersion: v1
+            kind: ConfigMap
+            metadata:
+              name: window-lock
+              namespace: upgradetesting
+            data:
+              active: 'true'
+  dependencies:
+  - apiVersion: policy.open-cluster-management.io/v1
+    kind: Policy
+    namespace: upgradetesting
+    name: upgrade-01-precheck
+    compliance: Compliant
+---
+apiVersion: policy.open-cluster-management.io/v1
+kind: Policy
+metadata:
+  name: upgrade-03-progress-safety
+  namespace: upgradetesting
+  labels:
+    upgradetesting.example/phase: progress
+spec:
+  disabled: false
+  remediationAction: inform
+  policy-templates:
+  - objectDefinition:
+      apiVersion: policy.open-cluster-management.io/v1
+      kind: ConfigurationPolicy
+      metadata:
+        name: upgrade-03-progress-safety-1
+      spec:
+        remediationAction: inform
+        severity: critical
+        evaluationInterval:
+          compliant: 10s
+          noncompliant: 10s
+        object-templates:
+        - complianceType: musthave
+          objectDefinition:
+            apiVersion: v1
+            kind: ConfigMap
+            metadata:
+              name: demo-observation
+              namespace: upgradetesting
+            data:
+              operatorDegraded: 'false'
+              cvoFailing: 'false'
+              signalsFresh: 'true'
+---
+apiVersion: policy.open-cluster-management.io/v1
+kind: Policy
+metadata:
+  name: upgrade-04-completion
+  namespace: upgradetesting
+  labels:
+    upgradetesting.example/phase: postcheck
+spec:
+  disabled: false
+  remediationAction: inform
+  policy-templates:
+  - objectDefinition:
+      apiVersion: policy.open-cluster-management.io/v1
+      kind: ConfigurationPolicy
+      metadata:
+        name: upgrade-04-completion-1
+      spec:
+        remediationAction: inform
+        severity: low
+        evaluationInterval:
+          compliant: 10s
+          noncompliant: 10s
+        object-templates:
+        - complianceType: musthave
+          objectDefinition:
+            apiVersion: v1
+            kind: ConfigMap
+            metadata:
+              name: demo-observation
+              namespace: upgradetesting
+            data:
+              completed: 'true'
+              operatorProgressing: 'false'
+              operatorDegraded: 'false'
+              cvoFailing: 'false'
+              signalsFresh: 'true'
+              currentVersion: 4.20.12
+---
+apiVersion: policy.open-cluster-management.io/v1
+kind: Policy
+metadata:
+  name: upgrade-05-steady-state
+  namespace: upgradetesting
+  labels:
+    upgradetesting.example/phase: baseline
+spec:
+  disabled: false
+  remediationAction: inform
+  policy-templates:
+  - objectDefinition:
+      apiVersion: policy.open-cluster-management.io/v1
+      kind: ConfigurationPolicy
+      metadata:
+        name: upgrade-05-steady-state-1
+      spec:
+        remediationAction: inform
+        severity: low
+        evaluationInterval:
+          compliant: 10s
+          noncompliant: 10s
+        object-templates:
+        - complianceType: musthave
+          objectDefinition:
+            apiVersion: v1
+            kind: ConfigMap
+            metadata:
+              name: demo-observation
+              namespace: upgradetesting
+            data:
+              operatorProgressing: 'false'
+              operatorDegraded: 'false'
+              completed: 'true'
+              signalsFresh: 'true'

@@ -1,0 +1,16 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: window-lock
+  namespace: upgradetesting
+data:
+  active: 'false'
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: demo-observation
+  namespace: upgradetesting
+data:
+  completed: 'true'
+  currentVersion: 4.20.12

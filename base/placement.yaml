@@ -1,0 +1,45 @@
+apiVersion: cluster.open-cluster-management.io/v1beta2
+kind: ManagedClusterSetBinding
+metadata:
+  name: global
+  namespace: upgradetesting
+spec:
+  clusterSet: global
+---
+apiVersion: cluster.open-cluster-management.io/v1beta1
+kind: Placement
+metadata:
+  name: hub-demo-only
+  namespace: upgradetesting
+spec:
+  predicates:
+  - requiredClusterSelector:
+      labelSelector:
+        matchLabels:
+          local-cluster: 'true'
+---
+apiVersion: policy.open-cluster-management.io/v1
+kind: PlacementBinding
+metadata:
+  name: hub-demo-only
+  namespace: upgradetesting
+placementRef:
+  apiGroup: cluster.open-cluster-management.io
+  kind: Placement
+  name: hub-demo-only
+subjects:
+- apiGroup: policy.open-cluster-management.io
+  kind: Policy
+  name: upgrade-01-precheck
+- apiGroup: policy.open-cluster-management.io
+  kind: Policy
+  name: upgrade-02-window-admission
+- apiGroup: policy.open-cluster-management.io
+  kind: Policy
+  name: upgrade-03-progress-safety
+- apiGroup: policy.open-cluster-management.io
+  kind: Policy
+  name: upgrade-04-completion
+- apiGroup: policy.open-cluster-management.io
+  kind: Policy
+  name: upgrade-05-steady-state

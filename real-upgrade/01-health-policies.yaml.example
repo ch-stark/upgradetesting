@@ -1,0 +1,182 @@
+apiVersion: policy.open-cluster-management.io/v1
+kind: Policy
+metadata:
+  name: live-precheck
+  namespace: upgradetesting-live
+spec:
+  disabled: false
+  remediationAction: inform
+  policy-templates:
+  - objectDefinition:
+      apiVersion: policy.open-cluster-management.io/v1
+      kind: ConfigurationPolicy
+      metadata:
+        name: live-precheck-1
+      spec:
+        remediationAction: inform
+        severity: low
+        evaluationInterval:
+          compliant: 30s
+          noncompliant: 10s
+        object-templates:
+        - complianceType: mustnothave
+          objectDefinition:
+            apiVersion: config.openshift.io/v1
+            kind: ClusterOperator
+            status:
+              conditions:
+              - type: Degraded
+                status: 'True'
+        - complianceType: mustnothave
+          objectDefinition:
+            apiVersion: config.openshift.io/v1
+            kind: ClusterOperator
+            status:
+              conditions:
+              - type: Available
+                status: 'False'
+  - objectDefinition:
+      apiVersion: policy.open-cluster-management.io/v1
+      kind: ConfigurationPolicy
+      metadata:
+        name: live-precheck-2
+      spec:
+        remediationAction: inform
+        severity: low
+        evaluationInterval:
+          compliant: 30s
+          noncompliant: 10s
+        object-templates:
+        - complianceType: mustnothave
+          objectDefinition:
+            apiVersion: machineconfiguration.openshift.io/v1
+            kind: MachineConfigPool
+            status:
+              conditions:
+              - type: Degraded
+                status: 'True'
+---
+apiVersion: policy.open-cluster-management.io/v1
+kind: Policy
+metadata:
+  name: live-progress-safety
+  namespace: upgradetesting-live
+spec:
+  disabled: false
+  remediationAction: inform
+  policy-templates:
+  - objectDefinition:
+      apiVersion: policy.open-cluster-management.io/v1
+      kind: ConfigurationPolicy
+      metadata:
+        name: live-progress-safety-1
+      spec:
+        remediationAction: inform
+        severity: low
+        evaluationInterval:
+          compliant: 30s
+          noncompliant: 10s
+        object-templates:
+        - complianceType: mustnothave
+          objectDefinition:
+            apiVersion: config.openshift.io/v1
+            kind: ClusterOperator
+            status:
+              conditions:
+              - type: Degraded
+                status: 'True'
+        - complianceType: mustnothave
+          objectDefinition:
+            apiVersion: config.openshift.io/v1
+            kind: ClusterOperator
+            status:
+              conditions:
+              - type: Available
+                status: 'False'
+        - complianceType: mustnothave
+          objectDefinition:
+            apiVersion: config.openshift.io/v1
+            kind: ClusterVersion
+            metadata:
+              name: version
+            status:
+              conditions:
+              - type: Failing
+                status: 'True'
+---
+apiVersion: policy.open-cluster-management.io/v1
+kind: Policy
+metadata:
+  name: live-completion
+  namespace: upgradetesting-live
+spec:
+  disabled: false
+  remediationAction: inform
+  policy-templates:
+  - objectDefinition:
+      apiVersion: policy.open-cluster-management.io/v1
+      kind: ConfigurationPolicy
+      metadata:
+        name: live-completion-1
+      spec:
+        remediationAction: inform
+        severity: low
+        evaluationInterval:
+          compliant: 30s
+          noncompliant: 10s
+        object-templates:
+        - complianceType: musthave
+          objectDefinition:
+            apiVersion: config.openshift.io/v1
+            kind: ClusterVersion
+            metadata:
+              name: version
+            status:
+              desired:
+                version: REPLACE_TARGET_VERSION
+              history:
+              - version: REPLACE_TARGET_VERSION
+                state: Completed
+              conditions:
+              - type: Available
+                status: 'True'
+              - type: Progressing
+                status: 'False'
+              - type: Failing
+                status: 'False'
+  - objectDefinition:
+      apiVersion: policy.open-cluster-management.io/v1
+      kind: ConfigurationPolicy
+      metadata:
+        name: live-completion-2
+      spec:
+        remediationAction: inform
+        severity: low
+        evaluationInterval:
+          compliant: 30s
+          noncompliant: 10s
+        object-templates:
+        - complianceType: mustnothave
+          objectDefinition:
+            apiVersion: machineconfiguration.openshift.io/v1
+            kind: MachineConfigPool
+            status:
+              conditions:
+              - type: Updating
+                status: 'True'
+        - complianceType: mustnothave
+          objectDefinition:
+            apiVersion: machineconfiguration.openshift.io/v1
+            kind: MachineConfigPool
+            status:
+              conditions:
+              - type: Updated
+                status: 'False'
+        - complianceType: mustnothave
+          objectDefinition:
+            apiVersion: machineconfiguration.openshift.io/v1
+            kind: MachineConfigPool
+            status:
+              conditions:
+              - type: Degraded
+                status: 'True'

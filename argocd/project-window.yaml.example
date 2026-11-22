@@ -1,0 +1,16 @@
+# PARTIAL example. Merge into the Git source of your existing test AppProject.
+# Preserve repository restrictions, destinations, permissions and other windows.
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  name: REPLACE_TEST_PROJECT
+  namespace: openshift-gitops
+spec:
+  syncWindows:
+    - kind: allow
+      schedule: "0 6 * * 1"
+      timeZone: Europe/Berlin
+      duration: 30m
+      applications:
+        - upgradetesting-demo
+      manualSync: false

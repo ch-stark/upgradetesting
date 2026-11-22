@@ -1,0 +1,59 @@
+apiVersion: policy.open-cluster-management.io/v1
+kind: Policy
+metadata:
+  name: live-upgrade-trigger
+  namespace: upgradetesting-live
+spec:
+  disabled: true
+  remediationAction: enforce
+  policy-templates:
+  - objectDefinition:
+      apiVersion: policy.open-cluster-management.io/v1
+      kind: ConfigurationPolicy
+      metadata:
+        name: live-upgrade-trigger
+      spec:
+        remediationAction: enforce
+        severity: high
+        evaluationInterval:
+          compliant: 30s
+          noncompliant: 10s
+        object-templates:
+        - complianceType: musthave
+          objectDefinition:
+            apiVersion: cluster.open-cluster-management.io/v1beta1
+            kind: ClusterCurator
+            metadata:
+              name: REPLACE_MANAGED_CLUSTER_NAME
+              namespace: REPLACE_MANAGED_CLUSTER_NAME
+            spec:
+              desiredCuration: upgrade
+              upgrade:
+                desiredUpdate: REPLACE_TARGET_VERSION
+                monitorTimeout: 180
+---
+apiVersion: cluster.open-cluster-management.io/v1beta1
+kind: Placement
+metadata:
+  name: live-trigger-on-hub
+  namespace: upgradetesting-live
+spec:
+  predicates:
+  - requiredClusterSelector:
+      labelSelector:
+        matchLabels:
+          local-cluster: 'true'
+---
+apiVersion: policy.open-cluster-management.io/v1
+kind: PlacementBinding
+metadata:
+  name: live-trigger-on-hub
+  namespace: upgradetesting-live
+placementRef:
+  apiGroup: cluster.open-cluster-management.io
+  kind: Placement
+  name: live-trigger-on-hub
+subjects:
+- apiGroup: policy.open-cluster-management.io
+  kind: Policy
+  name: live-upgrade-trigger

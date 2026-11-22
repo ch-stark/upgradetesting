@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: window-lock
+  namespace: upgradetesting
+data:
+  active: 'true'
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: demo-observation
+  namespace: upgradetesting
+data:
+  operatorProgressing: 'true'

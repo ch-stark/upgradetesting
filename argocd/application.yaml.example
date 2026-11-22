@@ -1,0 +1,20 @@
+# Review project, namespace, revision and path before applying.
+# Only the synthetic demo is included; real-upgrade is intentionally excluded.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: upgradetesting-demo
+  namespace: openshift-gitops
+spec:
+  project: REPLACE_TEST_PROJECT
+  source:
+    repoURL: https://github.com/ch-stark/upgradetesting.git
+    targetRevision: main
+    path: overlays/01-window-closed
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: upgradetesting
+  syncPolicy:
+    automated:
+      prune: false
+      selfHeal: true
