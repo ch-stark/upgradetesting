@@ -2,7 +2,7 @@ apiVersion: policy.open-cluster-management.io/v1
 kind: Policy
 metadata:
   name: live-upgrade-trigger
-  namespace: upgradetesting-live
+  namespace: policies
 spec:
   disabled: true
   remediationAction: enforce
@@ -31,12 +31,20 @@ spec:
               upgrade:
                 desiredUpdate: REPLACE_TARGET_VERSION
                 monitorTimeout: 180
+        pruneObjectBehavior: None
+    ignorePending: false
+  dependencies:
+  - apiVersion: policy.open-cluster-management.io/v1
+    kind: Policy
+    namespace: policies
+    name: live-upgrade-admission
+    compliance: Compliant
 ---
 apiVersion: cluster.open-cluster-management.io/v1beta1
 kind: Placement
 metadata:
   name: live-trigger-on-hub
-  namespace: upgradetesting-live
+  namespace: policies
 spec:
   predicates:
   - requiredClusterSelector:
@@ -48,7 +56,7 @@ apiVersion: policy.open-cluster-management.io/v1
 kind: PlacementBinding
 metadata:
   name: live-trigger-on-hub
-  namespace: upgradetesting-live
+  namespace: policies
 placementRef:
   apiGroup: cluster.open-cluster-management.io
   kind: Placement

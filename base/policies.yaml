@@ -2,7 +2,7 @@ apiVersion: policy.open-cluster-management.io/v1
 kind: Policy
 metadata:
   name: upgrade-01-precheck
-  namespace: upgradetesting
+  namespace: policies
   labels:
     upgradetesting.example/phase: precheck
 spec:
@@ -31,12 +31,13 @@ spec:
             data:
               baselineHealthy: 'true'
               signalsFresh: 'true'
+    ignorePending: false
 ---
 apiVersion: policy.open-cluster-management.io/v1
 kind: Policy
 metadata:
   name: upgrade-02-window-admission
-  namespace: upgradetesting
+  namespace: policies
   labels:
     upgradetesting.example/phase: admission
 spec:
@@ -64,10 +65,11 @@ spec:
               namespace: upgradetesting
             data:
               active: 'true'
+    ignorePending: false
   dependencies:
   - apiVersion: policy.open-cluster-management.io/v1
     kind: Policy
-    namespace: upgradetesting
+    namespace: policies
     name: upgrade-01-precheck
     compliance: Compliant
 ---
@@ -75,7 +77,7 @@ apiVersion: policy.open-cluster-management.io/v1
 kind: Policy
 metadata:
   name: upgrade-03-progress-safety
-  namespace: upgradetesting
+  namespace: policies
   labels:
     upgradetesting.example/phase: progress
 spec:
@@ -105,12 +107,13 @@ spec:
               operatorDegraded: 'false'
               cvoFailing: 'false'
               signalsFresh: 'true'
+    ignorePending: false
 ---
 apiVersion: policy.open-cluster-management.io/v1
 kind: Policy
 metadata:
   name: upgrade-04-completion
-  namespace: upgradetesting
+  namespace: policies
   labels:
     upgradetesting.example/phase: postcheck
 spec:
@@ -138,17 +141,45 @@ spec:
               namespace: upgradetesting
             data:
               completed: 'true'
+              signalsFresh: 'true'
+              currentVersion: 4.20.12
+    ignorePending: false
+  - objectDefinition:
+      apiVersion: policy.open-cluster-management.io/v1
+      kind: ConfigurationPolicy
+      metadata:
+        name: upgrade-04-completion-2
+      spec:
+        remediationAction: inform
+        severity: low
+        evaluationInterval:
+          compliant: 10s
+          noncompliant: 10s
+        object-templates:
+        - complianceType: musthave
+          objectDefinition:
+            apiVersion: v1
+            kind: ConfigMap
+            metadata:
+              name: demo-observation
+              namespace: upgradetesting
+            data:
               operatorProgressing: 'false'
               operatorDegraded: 'false'
               cvoFailing: 'false'
               signalsFresh: 'true'
-              currentVersion: 4.20.12
+    ignorePending: false
+    extraDependencies:
+    - apiVersion: policy.open-cluster-management.io/v1
+      kind: ConfigurationPolicy
+      name: upgrade-04-completion-1
+      compliance: Compliant
 ---
 apiVersion: policy.open-cluster-management.io/v1
 kind: Policy
 metadata:
   name: upgrade-05-steady-state
-  namespace: upgradetesting
+  namespace: policies
   labels:
     upgradetesting.example/phase: baseline
 spec:
@@ -179,3 +210,4 @@ spec:
               operatorDegraded: 'false'
               completed: 'true'
               signalsFresh: 'true'
+    ignorePending: false

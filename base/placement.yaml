@@ -1,16 +1,8 @@
-apiVersion: cluster.open-cluster-management.io/v1beta2
-kind: ManagedClusterSetBinding
-metadata:
-  name: global
-  namespace: upgradetesting
-spec:
-  clusterSet: global
----
 apiVersion: cluster.open-cluster-management.io/v1beta1
 kind: Placement
 metadata:
   name: hub-demo-only
-  namespace: upgradetesting
+  namespace: policies
 spec:
   predicates:
   - requiredClusterSelector:
@@ -22,7 +14,7 @@ apiVersion: policy.open-cluster-management.io/v1
 kind: PlacementBinding
 metadata:
   name: hub-demo-only
-  namespace: upgradetesting
+  namespace: policies
 placementRef:
   apiGroup: cluster.open-cluster-management.io
   kind: Placement

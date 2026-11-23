@@ -2,7 +2,7 @@ apiVersion: policy.open-cluster-management.io/v1
 kind: Policy
 metadata:
   name: live-precheck
-  namespace: upgradetesting-live
+  namespace: policies
 spec:
   disabled: false
   remediationAction: inform
@@ -35,6 +35,7 @@ spec:
               conditions:
               - type: Available
                 status: 'False'
+    ignorePending: false
   - objectDefinition:
       apiVersion: policy.open-cluster-management.io/v1
       kind: ConfigurationPolicy
@@ -55,12 +56,13 @@ spec:
               conditions:
               - type: Degraded
                 status: 'True'
+    ignorePending: false
 ---
 apiVersion: policy.open-cluster-management.io/v1
 kind: Policy
 metadata:
   name: live-progress-safety
-  namespace: upgradetesting-live
+  namespace: policies
 spec:
   disabled: false
   remediationAction: inform
@@ -103,12 +105,13 @@ spec:
               conditions:
               - type: Failing
                 status: 'True'
+    ignorePending: false
 ---
 apiVersion: policy.open-cluster-management.io/v1
 kind: Policy
 metadata:
   name: live-completion
-  namespace: upgradetesting-live
+  namespace: policies
 spec:
   disabled: false
   remediationAction: inform
@@ -144,6 +147,7 @@ spec:
                 status: 'False'
               - type: Failing
                 status: 'False'
+    ignorePending: false
   - objectDefinition:
       apiVersion: policy.open-cluster-management.io/v1
       kind: ConfigurationPolicy
@@ -180,3 +184,4 @@ spec:
               conditions:
               - type: Degraded
                 status: 'True'
+    ignorePending: false

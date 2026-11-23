@@ -22,6 +22,12 @@ There are two separate paths:
 
 See [design boundaries](docs/design.md) and [manual acceptance checklist](docs/manual-checklist.md).
 
+## Policy Dependency and namespaces
+
+Root Policies, Placements, and PlacementBindings live in the existing **`policies`** namespace. Synthetic observations and the manual approval ConfigMap live in the disposable **`upgradetesting`** namespace. ACM still creates its replicated policies in managed-cluster namespaces; do not move those replicas.
+
+This uses the native `spec.dependencies` and template `extraDependencies` patterns from [policydependencydemo](https://github.com/ch-stark/policydependencydemo/tree/d7ecb5bb11adbea22cabba7688c5da00aa1f54ec), written directly as static YAML. No Policy Generator installation is required. See [dependency design and manual tests](docs/policy-dependencies.md).
+
 ## 1. Start with the hub-only demo
 
 Keep all edits in Git. Review/commit a scenario change before delivering it. Use your existing Argo CD Application, or apply the committed YAML manually for this lab. Manual `oc apply` is not controlled by Argo sync windows.
@@ -32,23 +38,25 @@ Set your actual hub context:
 HUB_CONTEXT='your-hub-context'
 oc --context="$HUB_CONTEXT" get managedclusters -l local-cluster=true
 oc --context="$HUB_CONTEXT" get managedclusterset global
+oc --context="$HUB_CONTEXT" get namespace policies
+oc --context="$HUB_CONTEXT" get managedclustersetbinding global -n policies
 oc --context="$HUB_CONTEXT" get namespace upgradetesting --ignore-not-found
 ```
 
-The registered local hub must be available with the policy add-on enabled. The demo creates only its own `upgradetesting` namespace. If that namespace already contains unrelated work, stop and choose an isolated namespace consistently in Git first.
+The registered local hub must be available with the policy add-on enabled. The shared `policies` namespace must already be bound to the `global` cluster set, including the local hub and any real test target. Have the hub administrator establish that prerequisite if missing. The demo creates only its own `upgradetesting` namespace; it does not manage the shared namespace or binding. If `upgradetesting` already contains unrelated work, choose an isolated namespace consistently in Git first.
 
 Deliver the first scenario:
 
 ```bash
 oc --context="$HUB_CONTEXT" apply -k overlays/01-window-closed
-oc --context="$HUB_CONTEXT" get placementdecisions -n upgradetesting
-oc --context="$HUB_CONTEXT" get policies -n upgradetesting
+oc --context="$HUB_CONTEXT" get placementdecisions -n policies
+oc --context="$HUB_CONTEXT" get policies -n policies
 ```
 
 Wait for policy propagation/evaluation. Inspect details if no results appear:
 
 ```bash
-oc --context="$HUB_CONTEXT" describe policy upgrade-02-window-admission -n upgradetesting
+oc --context="$HUB_CONTEXT" describe policy upgrade-02-window-admission -n policies
 ```
 
 Apply one scenario at a time, from its reviewed Git source:
@@ -78,7 +86,9 @@ Additional scenarios are `07-stale-observation` and `08-precheck-blocked`.
 | Stale observation | NC | Pending | NC | NC | NC |
 | Precheck blocked | NC | Pending | C | NC | NC |
 
-The demo's precheck represents a synthetic baseline result. Progress safety stays independent, so a new failure remains visible even after admission. These ConfigMap values are not measurements of actual cluster health. No policy enforces any change in this demo.
+The demo's precheck represents a synthetic baseline result. Admission depends on that root Policy being Compliant. Completion's second template depends on its first ConfigurationPolicy being Compliant: target convergence first, settled health second. Progress safety stays independent, so a new failure remains visible even when another phase is blocked. These ConfigMap values are not measurements of actual cluster health. No policy enforces any change in this demo.
+
+Every template has `ignorePending: false`. A blocked template is not treated as a passed check. Native ACM can summarize a Pending template as root-policy NonCompliant; read the per-cluster template messages.
 
 The admission policy observes whether the lock is active. It does not execute an upgrade, reserve capacity, or provide late-spoke protection. All policies and templates are explicitly informational.
 
@@ -90,7 +100,7 @@ If Argo owns these resources, remove/disable that source through Git first to pr
 oc --context="$HUB_CONTEXT" delete -k overlays/01-window-closed
 ```
 
-This deletes the dedicated demo namespace. It does not delete any managed-cluster namespace or real upgrade object.
+This deletes the five named demo root Policies, their Placement/Binding, and the dedicated demo namespace. It leaves the shared `policies` namespace and `global` binding intact. Do not run demo cleanup while using the real-upgrade approval ConfigMap in `upgradetesting`. It does not delete a managed-cluster namespace or curator.
 
 ## 2. Optional real upgrade: one managed test cluster
 
@@ -108,7 +118,7 @@ Before testing:
 
 Copy the `.yaml.example` files to `.yaml` files in a separate test Git path. Do not bulk-apply the directory.
 
-Replace every `REPLACE_MANAGED_CLUSTER_NAME` and `REPLACE_TARGET_VERSION`. The target must match in the trigger and completion policy. No target/channel is chosen for you.
+Replace every `REPLACE_MANAGED_CLUSTER_NAME` and `REPLACE_TARGET_VERSION`. The cluster and target must match across the approval, admission, trigger, completion, and view files. No target/channel is chosen for you. Keep both approval values `false` initially.
 
 ```bash
 oc --context="$HUB_CONTEXT" get managedcluster YOUR_TEST_CLUSTER --show-labels
@@ -124,17 +134,23 @@ Leave `spec.disabled: true` in the trigger during preparation.
 After reviewing/committing the prepared files, deliver them individually:
 
 ```bash
-oc --context="$HUB_CONTEXT" apply -f real-upgrade/00-namespace.yaml
+oc --context="$HUB_CONTEXT" get namespace policies
+oc --context="$HUB_CONTEXT" get managedclustersetbinding global -n policies
+oc --context="$HUB_CONTEXT" apply -f base/namespace.yaml
 oc --context="$HUB_CONTEXT" apply -f PATH_TO_PREPARED/01-health-policies.yaml
 oc --context="$HUB_CONTEXT" apply -f PATH_TO_PREPARED/02-spoke-placement.yaml
 oc --context="$HUB_CONTEXT" apply -f PATH_TO_PREPARED/04-observation-views.yaml
+oc --context="$HUB_CONTEXT" apply -f PATH_TO_PREPARED/03-trigger.yaml
+oc --context="$HUB_CONTEXT" apply -f PATH_TO_PREPARED/05-hub-admission.yaml
 ```
+
+The trigger must still have `disabled: true`. Applying it here creates the hub Placement used by admission without enabling the upgrade. The approval values must still be `false`.
 
 The view resources are created on the hub in the selected managed-cluster namespace. They request read-only observations of remote ClusterVersion, ClusterOperators, and MachineConfigPools. No direct spoke login is required.
 
 ```bash
-oc --context="$HUB_CONTEXT" get placementdecisions -n upgradetesting-live -o yaml
-oc --context="$HUB_CONTEXT" get policies -n upgradetesting-live
+oc --context="$HUB_CONTEXT" get placementdecisions -n policies -o yaml
+oc --context="$HUB_CONTEXT" get policies -n policies
 oc --context="$HUB_CONTEXT" get managedclusterview upgradetesting-version -n YOUR_TEST_CLUSTER -o yaml
 oc --context="$HUB_CONTEXT" get managedclusterview upgradetesting-operators -n YOUR_TEST_CLUSTER -o yaml
 oc --context="$HUB_CONTEXT" get managedclusterview upgradetesting-pools -n YOUR_TEST_CLUSTER -o yaml
@@ -148,22 +164,30 @@ Confirm baseline availability, no degradation/failure, no active upgrade, requir
 
 The trigger is evaluated on the hub and creates/updates one curator in the explicitly named managed-cluster namespace. Its Placement is **not** the health policy's spoke Placement.
 
-There is deliberately no claimed automatic cross-cluster dependency gate between the hub trigger and the spoke precheck. **You check the spoke result manually before activation.**
+The trigger has a native Policy Dependency on `policies/live-upgrade-admission`. Both admission and trigger run on the local hub. Admission requires:
 
-After confirming the correct target and prechecks, change only the prepared trigger's `spec.disabled` to `false`, review/commit it, and deliver:
+1. The approval ConfigMap to name this exact cluster/target and have `prechecksReviewed: 'true'` and `windowApproved: 'true'`.
+2. A reported `Compliant` entry for this exact cluster in the hub root `policies/live-precheck` Policy's `status.status` list.
+3. The ManagedCluster to report Joined and Available.
+
+Admission's second template uses `extraDependencies` on the approval-check ConfigurationPolicy. This is an explicit hub-side observation bridge, not a native dependency across two execution clusters. It reads asynchronously reported status; it does not prove freshness or perform an atomic health-and-start operation. **You still review actual remote evidence manually before approval.**
+
+After that review, change both approval values to `'true'` in the prepared `05-hub-admission.yaml`, review/commit, and deliver that file. Verify the local hub's admission result is Compliant and inspect its template messages. If it is Pending, NonCompliant, or Unknown, do not enable the trigger.
+
+Then change only the prepared trigger's `spec.disabled` to `false`, review/commit it, and deliver:
 
 ```bash
 oc --context="$HUB_CONTEXT" apply -f PATH_TO_PREPARED/03-trigger.yaml
 ```
 
-This can start a real upgrade. The trigger contains only the curator assertion; the failure detectors are in separate informational policies. Verify no binding override changes their remediation.
+This can start a real upgrade. The trigger contains only the curator assertion; the failure detectors are in separate informational policies. Verify no binding override changes their remediation. The trigger explicitly sets `pruneObjectBehavior: None`: loss of a dependency must not delete the curator. Loss of admission cannot undo an intent or stop an upgrade that has already started.
 
 ### 2d. Verify actual completion from the hub
 
 ```bash
 oc --context="$HUB_CONTEXT" get clustercurator YOUR_TEST_CLUSTER -n YOUR_TEST_CLUSTER -o yaml
 oc --context="$HUB_CONTEXT" get jobs -n YOUR_TEST_CLUSTER
-oc --context="$HUB_CONTEXT" get policies -n upgradetesting-live
+oc --context="$HUB_CONTEXT" get policies -n policies
 oc --context="$HUB_CONTEXT" get managedclusterview upgradetesting-version -n YOUR_TEST_CLUSTER -o yaml
 oc --context="$HUB_CONTEXT" get managedclusterview upgradetesting-operators -n YOUR_TEST_CLUSTER -o yaml
 oc --context="$HUB_CONTEXT" get managedclusterview upgradetesting-pools -n YOUR_TEST_CLUSTER -o yaml
@@ -181,7 +205,7 @@ Completion noncompliance during a normal rollout is expected. Degraded/unavailab
 
 ### 2e. Stop further reconciliation after the test
 
-Set the trigger back to disabled through Git and deliver the change. This does not cancel an active upgrade or roll back the platform. Do not delete/recreate a curator to retry or clean up while execution is unresolved. Do not delete the managed-cluster namespace. Retain the results for review.
+Set the trigger back to disabled through Git and deliver the change. Revoke both approval values through Git as well. Neither action cancels an active upgrade or rolls back the platform. Do not delete/recreate a curator to retry or clean up while execution is unresolved. Do not delete the managed-cluster namespace or shared `policies` namespace. Retain the results for review.
 
 ## Argo CD
 
@@ -189,8 +213,12 @@ Set the trigger back to disabled through Git and deliver the change. This does n
 
 Only the demo overlay belongs in the first Argo Application. Keep the real trigger outside automated discovery until its exact target and manual process are reviewed.
 
+The demo contains resources in both `policies` and `upgradetesting`, plus the demo Namespace resource. The existing AppProject and Argo service account must permit those destinations/resource kinds. Explicit resource namespaces are intentional; do not add a Kustomize namespace override that moves every resource into one namespace.
+
 An open window allows delivery. It does not expire the lock, guarantee a CVO start time, or stop an already-running upgrade. A lock-closing Git change can itself wait behind a closed sync window. Strict deadlines require executor-side enforcement and are not claimed here.
 
 ## Validation status
 
-All scenarios can be rendered locally with `oc kustomize overlays/SCENARIO`. YAML/render inspection is not live admission, policy propagation, or upgrade validation. The actual ACM/controller behavior will be checked manually on the test hub.
+All scenarios can be rendered locally with `oc kustomize overlays/SCENARIO`. YAML/render inspection is not live admission, policy propagation, or upgrade validation. The actual ACM/controller behavior, including the hub-side status bridge and access to root Policies, must be checked manually on the test hub.
+
+If you deployed the previous revision, moving a resource's namespace does not remove its old copy. Follow the [migration instructions](docs/policy-dependencies.md#migrating-an-earlier-checkout) before applying this revision.

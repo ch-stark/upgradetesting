@@ -2,7 +2,7 @@ apiVersion: cluster.open-cluster-management.io/v1beta1
 kind: Placement
 metadata:
   name: live-test-spoke
-  namespace: upgradetesting-live
+  namespace: policies
 spec:
   numberOfClusters: 1
   predicates:
@@ -15,7 +15,7 @@ apiVersion: policy.open-cluster-management.io/v1
 kind: PlacementBinding
 metadata:
   name: live-test-spoke-health
-  namespace: upgradetesting-live
+  namespace: policies
 placementRef:
   apiGroup: cluster.open-cluster-management.io
   kind: Placement

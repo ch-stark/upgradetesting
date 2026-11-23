@@ -1,5 +1,7 @@
 # Review project, namespace, revision and path before applying.
 # Only the synthetic demo is included; real-upgrade is intentionally excluded.
+# Root resources explicitly target policies; test ConfigMaps target upgradetesting.
+# The AppProject/RBAC must allow both namespaces and the test Namespace resource.
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
