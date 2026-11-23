@@ -1,0 +1,73 @@
+apiVersion: policy.open-cluster-management.io/v1
+kind: Policy
+metadata:
+  name: live-upgrade-channel
+  namespace: policies
+spec:
+  disabled: true
+  remediationAction: enforce
+  policy-templates:
+  - ignorePending: false
+    objectDefinition:
+      apiVersion: policy.open-cluster-management.io/v1
+      kind: ConfigurationPolicy
+      metadata:
+        name: live-upgrade-channel-check
+      spec:
+        remediationAction: enforce
+        severity: high
+        pruneObjectBehavior: None
+        evaluationInterval:
+          compliant: 30s
+          noncompliant: 10s
+        object-templates:
+        - complianceType: musthave
+          objectDefinition:
+            apiVersion: config.openshift.io/v1
+            kind: ClusterVersion
+            metadata:
+              name: version
+            spec:
+              channel: REPLACE_APPROVED_CHANNEL
+  dependencies:
+  - apiVersion: policy.open-cluster-management.io/v1
+    kind: Policy
+    namespace: policies
+    name: live-precheck
+    compliance: Compliant
+---
+apiVersion: policy.open-cluster-management.io/v1
+kind: Policy
+metadata:
+  name: live-upgrade-target
+  namespace: policies
+spec:
+  disabled: false
+  remediationAction: inform
+  policy-templates:
+  - ignorePending: false
+    objectDefinition:
+      apiVersion: policy.open-cluster-management.io/v1
+      kind: ConfigurationPolicy
+      metadata:
+        name: live-upgrade-target-check
+      spec:
+        remediationAction: inform
+        severity: high
+        pruneObjectBehavior: None
+        evaluationInterval:
+          compliant: 30s
+          noncompliant: 10s
+        object-templates:
+        - complianceType: musthave
+          objectDefinition:
+            apiVersion: config.openshift.io/v1
+            kind: ClusterVersion
+            metadata:
+              name: version
+            spec:
+              channel: REPLACE_APPROVED_CHANNEL
+            status:
+              availableUpdates:
+              - version: REPLACE_TARGET_VERSION
+                image: REPLACE_APPROVED_RELEASE_IMAGE

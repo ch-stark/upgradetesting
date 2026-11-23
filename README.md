@@ -1,85 +1,67 @@
-# OpenShift upgrade policies: concepts and manual examples
+# OpenShift upgrade policies: label-selected manual examples
 
-Plain YAML for manual testing from a Red Hat Advanced Cluster Management hub. No Go templates, Python runner, Ansible dependency, new CRD, or custom controller.
+Plain YAML for a Git-reviewed OpenShift upgrade workflow with ACM Policy Dependencies. No Go templates, Python runner, Ansible dependency, new CRD, or custom controller is added.
 
-This repository contains two separate example paths and a customer design proposal:
+**Eligibility is opt-in:** a ManagedCluster must have the exact label `shouldupgrade: "true"`. Missing, `"false"`, and differently cased values are ignored. ACM Placement performs the fan-out across matching clusters; no ManagedCluster name is hardcoded and no custom inventory loop is required.
 
-| Path | Purpose | Changes a real upgrade target? |
+| Path | Purpose | Real platform changes? |
 |---|---|---|
-| `overlays/` | Demonstrate policy phases using synthetic ConfigMap data on the local hub | No |
-| `real-upgrade/` | Manually test one managed test cluster using ClusterCurator and informational health policies | Only after editing and explicitly enabling the disabled trigger |
-| [Customer cohort design](docs/customer-cohort.md) | Proposed AutoShift-first journey for one Git-approved cohort of up to ten clusters | Documentation only; no additional upgrade executor is installed |
+| `overlays/` | Synthetic ConfigMap scenarios on an opted-in local hub | No; all demo Policies are informational |
+| `real-upgrade/` | Native CVO upgrade on eligible managed spokes, with local dependency gates | Only after replacing target placeholders and explicitly enabling the disabled channel/request Policies |
+| [Customer cohort design](docs/customer-cohort.md) | AutoShift-first design for a reviewed cohort of up to ten | Design and acceptance criteria; not a capacity result |
 
-**If the hub is your only cluster, use the demo. A real upgrade needs a separate managed test cluster. Do not use the hub as the upgrade target.**
+The real-upgrade path now uses ClusterVersion directly. The earlier hub-side ClusterCurator trigger and named-cluster approval/view examples have been removed. **Existing deployments must follow the [migration instructions](docs/label-selection.md#migrate-the-earlier-example) before enabling the new trigger.** Use only one upgrade writer per cluster.
 
-The proposed customer path reuses AutoShift's existing CVO upgrade flow, with local Policy Dependencies and exact targets approved in Git. The ClusterCurator example is a separate alternative, not a second writer to enable alongside that flow. AutoShift integration and ten-cluster capacity are not established by the example manifests. See the [customer design and acceptance criteria](docs/customer-cohort.md).
+## Set membership in Git
 
-## Important corrections to the initial draft
+Merge this fragment into each intended ManagedCluster's existing Git-managed definition, or configure its label owner to preserve the same bare key:
 
-- An Argo CD sync window does not create, delete, or expire a ConfigMap automatically.
-- A hub lock is a delivery/intent signal, not an executor-side deadline. A disconnected spoke can later act on already-delivered intent.
-- Closing the window does not cancel an active ClusterCurator Job or CVO upgrade.
-- Root `remediationAction: enforce` overrides child remediation. Health checks are therefore in separate `inform` root policies, never inside the enforcing trigger policy.
-- Informational `mustnothave` checks detect unwanted failure conditions. They must not be changed to enforce, which can request deletion of matching platform objects.
-- Lower severity does not suppress native ACM noncompliance. Completion can remain NonCompliant while an upgrade progresses normally.
-
-See [design boundaries](docs/design.md) and [manual acceptance checklist](docs/manual-checklist.md).
-
-## Why only some Policies have cluster results
-
-A root Policy remains listed in Governance even when it is disabled. A PlacementBinding can still reference it, but `spec.disabled: true` prevents propagation for evaluation. Its configured remediation mode can still read `enforce`; that does not mean it is currently enforcing.
-
-An attended upgrade profile can leave informational baseline, safety, and completion checks active after the run, while retiring consumed channel/target/request Policies. Earlier synthetic scenarios should be kept separate from real health checks. A disabled or deferred check is **not a passed check**.
-
-In Governance, a green check with `1` means one compliant cluster, not one violation. A dash is not a compliance pass; disabled Policies, empty selection, or missing evaluation can produce no current result. If a Policy should be active, inspect its disabled flag, PlacementDecisions, add-on health, and replicated-policy details. `Source: Local` describes the Policy's origin, not its cluster selection.
-
-```bash
-HUB_CONTEXT='your-hub-context'
-oc --context="$HUB_CONTEXT" get policies -n policies \
-  -o custom-columns=NAME:.metadata.name,DISABLED:.spec.disabled,MODE:.spec.remediationAction
-oc --context="$HUB_CONTEXT" get placementdecisions -n policies -o yaml
+```yaml
+metadata:
+  labels:
+    shouldupgrade: "true"
 ```
 
-One root Policy can evaluate on multiple clusters. A ten-cluster cohort does not require ten copies of every root Policy. The synthetic overlays in this repository intentionally enable all their demo checks; they do not automatically implement phase retirement. See [policy lifecycle and Governance interpretation](docs/policy-lifecycle.md) before changing activation in a real profile.
+This is a metadata fragment, not a complete resource. It deliberately contains no cluster name. `shouldupgrade` and `autoshift.io/shouldupgrade` are different keys; the examples require the former. Do not patch AutoShift-owned labels imperatively or assume its prefixed values automatically create a bare label.
 
-## Policy Dependency and namespaces
+Both paths require this opt-in. The synthetic demo additionally requires `local-cluster: "true"` because its input ConfigMaps exist on the hub. The real path excludes clusters marked `local-cluster: "true"`, so opting the hub into the synthetic demo cannot select it for a real upgrade.
 
-Root Policies, Placements, and PlacementBindings live in the existing **`policies`** namespace. Synthetic observations and the manual approval ConfigMap live in the disposable **`upgradetesting`** namespace. ACM still creates its replicated policies in managed-cluster namespaces; do not move those replicas.
+| Labels | Synthetic demo | Real upgrade |
+|---|---|---|
+| Missing `shouldupgrade`, or value other than `"true"` | Ignored | Ignored |
+| `shouldupgrade: "true"`, local hub | Eligible | Excluded by hub-role guard |
+| `shouldupgrade: "true"`, managed spoke | Ignored | Eligible within bound cluster sets and Placement availability rules |
 
-This uses the native `spec.dependencies` and template `extraDependencies` patterns from [policydependencydemo](https://github.com/ch-stark/policydependencydemo/tree/d7ecb5bb11adbea22cabba7688c5da00aa1f54ec), written directly as static YAML. No Policy Generator installation is required. See [dependency design and manual tests](docs/policy-dependencies.md).
+There is no `numberOfClusters: 1` or first-match selection. All matching spokes can proceed independently. For the proposed customer cohort, review that at most ten members are opted in before activation. **This label is not a runtime concurrency cap:** if more are opted in, Placement can select more. Keep membership frozen through the run.
 
-## 1. Start with the hub-only demo
+Keep `shouldupgrade: "true"` until postchecks are finished. Removing it withdraws both request and health-policy placement after reconciliation; it does not cancel an accepted CVO upgrade or guarantee instantaneous expiry of previously delivered intent. Close consumed admission by disabling the channel/target/request Policies through their owning Git source, while retaining membership and independent safety checks.
 
-Keep all edits in Git. Review/commit a scenario change before delivering it. Use your existing Argo CD Application, or apply the committed YAML manually for this lab. Manual `oc apply` is not controlled by Argo sync windows.
+## Prerequisites
 
-Set your actual hub context:
+Use an already authenticated, explicit hub context. No credentials belong in this repository:
 
 ```bash
 HUB_CONTEXT='your-hub-context'
-oc --context="$HUB_CONTEXT" get managedclusters -l local-cluster=true
-oc --context="$HUB_CONTEXT" get managedclusterset global
 oc --context="$HUB_CONTEXT" get namespace policies
 oc --context="$HUB_CONTEXT" get managedclustersetbinding global -n policies
-oc --context="$HUB_CONTEXT" get namespace upgradetesting --ignore-not-found
+oc --context="$HUB_CONTEXT" get managedclusters -l shouldupgrade=true --show-labels
 ```
 
-The registered local hub must be available with the policy add-on enabled. The shared `policies` namespace must already be bound to the `global` cluster set, including the local hub and any real test target. Have the hub administrator establish that prerequisite if missing. The demo creates only its own `upgradetesting` namespace; it does not manage the shared namespace or binding. If `upgradetesting` already contains unrelated work, choose an isolated namespace consistently in Git first.
+Root Policies, Placements and PlacementBindings live in `policies`. The existing namespace must be bound to an appropriate ManagedClusterSet. The selected clusters need usable policy add-ons. The examples do not own the shared namespace/binding or change cluster-set membership.
 
-Deliver the first scenario:
+## 1. Synthetic hub-only demo
+
+Opt the registered local hub into the demo through its label owner in Git. The real-upgrade Placement still excludes that hub. The demo creates only its own `upgradetesting` data namespace; check for unrelated work before using that name.
+
+Review/commit changes before delivering them through your GitOps process or manually for this lab. Manual `oc apply` is not controlled by Argo sync windows.
 
 ```bash
 oc --context="$HUB_CONTEXT" apply -k overlays/01-window-closed
-oc --context="$HUB_CONTEXT" get placementdecisions -n policies
+oc --context="$HUB_CONTEXT" get placementdecisions -n policies -o yaml
 oc --context="$HUB_CONTEXT" get policies -n policies
 ```
 
-Wait for policy propagation/evaluation. Inspect details if no results appear:
-
-```bash
-oc --context="$HUB_CONTEXT" describe policy upgrade-02-window-admission -n policies
-```
-
-Apply one scenario at a time, from its reviewed Git source:
+If nothing is selected, check `shouldupgrade` on the local ManagedCluster and the cluster-set binding first. Apply one scenario at a time from its reviewed source:
 
 ```bash
 oc --context="$HUB_CONTEXT" apply -k overlays/02-ready-window-open
@@ -89,13 +71,11 @@ oc --context="$HUB_CONTEXT" apply -k overlays/05-window-closed-in-flight
 oc --context="$HUB_CONTEXT" apply -k overlays/06-completed-window-closed
 ```
 
-Additional scenarios are `07-stale-observation` and `08-precheck-blocked`.
+Additional scenarios are `07-stale-observation` and `08-precheck-blocked`. They set synthetic inputs; they do not measure a real cluster.
 
-### Expected demo results
+`C` means Compliant; `NC` means NonCompliant. An unmet dependency leaves a template Pending; inspect per-cluster details rather than inferring success from a summary.
 
-`C` = Compliant, `NC` = NonCompliant. An unmet dependency leaves the admission template Pending; inspect the per-cluster details rather than relying on a single summary field.
-
-| Scenario | Precheck | Window admission | Progress safety | Completion | Strict steady state |
+| Scenario | Precheck | Admission | Safety | Completion | Strict steady state |
 |---|---|---|---|---|---|
 | Window closed | C | NC | C | NC | NC |
 | Ready, window open | C | C | C | NC | NC |
@@ -106,141 +86,77 @@ Additional scenarios are `07-stale-observation` and `08-precheck-blocked`.
 | Stale observation | NC | Pending | NC | NC | NC |
 | Precheck blocked | NC | Pending | C | NC | NC |
 
-The demo's precheck represents a synthetic baseline result. Admission depends on that root Policy being Compliant. Completion's second template depends on its first ConfigurationPolicy being Compliant: target convergence first, settled health second. Progress safety stays independent, so a new failure remains visible even when another phase is blocked. These ConfigMap values are not measurements of actual cluster health. No policy enforces any change in this demo.
+All templates use `ignorePending: false`. Admission depends on the precheck Policy; completion uses a ConfigurationPolicy extraDependency. Safety remains independent. See [dependency details](docs/policy-dependencies.md).
 
-Every template has `ignorePending: false`. A blocked template is not treated as a passed check. Native ACM can summarize a Pending template as root-policy NonCompliant; read the per-cluster template messages.
-
-The admission policy observes whether the lock is active. It does not execute an upgrade, reserve capacity, or provide late-spoke protection. All policies and templates are explicitly informational.
-
-### Demo cleanup
-
-If Argo owns these resources, remove/disable that source through Git first to prevent recreation. Confirm the namespace contains only the demo, then:
+For cleanup, stop any Argo source that would recreate the demo, verify its ownership, then remove only this demo:
 
 ```bash
 oc --context="$HUB_CONTEXT" delete -k overlays/01-window-closed
 ```
 
-This deletes the five named demo root Policies, their Placement/Binding, and the dedicated demo namespace. It leaves the shared `policies` namespace and `global` binding intact. Do not run demo cleanup while using the real-upgrade approval ConfigMap in `upgradetesting`. It does not delete a managed-cluster namespace or curator.
+This removes its Policies/Placement/Binding and dedicated data namespace. It leaves the shared `policies` namespace, cluster-set binding, and real-upgrade resources alone. Do not remove a membership label still needed by an active real run.
 
-## 2. Optional real upgrade: one managed test cluster
+## 2. Label-selected real upgrade
 
-The files in `real-upgrade/` are static examples. They are not referenced by the demo. Their `.yaml.example` extension and disabled trigger prevent accidental activation through the demo or a directory apply.
+The `.yaml.example` files are excluded from the demo. Copy them into a separate reviewed Git path as `.yaml` files and deliver individually, not by bulk-applying the repository.
 
-Before testing:
+| File | Role |
+|---|---|
+| `01-health-policies.yaml.example` | Informational precheck, independent safety, and completion |
+| `02-spoke-placement.yaml.example` | One label-selected Placement and binding for all real upgrade Policies |
+| `03-trigger.yaml.example` | Disabled-by-default native CVO request, gated on local precheck/channel/target Policies |
+| `04-channel-and-target.yaml.example` | Disabled-by-default channel change and informational exact-target validation |
 
-1. Use a non-hub, standard self-managed OpenShift test cluster.
-2. Choose an exact **recommended forward patch in its current minor release**. EUS and minor-version sequencing are outside this first manual test.
-3. Confirm ClusterCurator and ManagedClusterView are installed and the hub/view agents have the required permissions.
-4. Inspect any existing curator. Do not overwrite an active lifecycle operation or a curator controlled by another automation. The upgrade must not contain Ansible hooks, intermediate steps, or custom Job overrides.
-5. Pause competing upgrade writers through their owning Git configuration. This concept has no fleet-wide concurrency lock.
+The Placement requires `shouldupgrade: "true"`, excludes the hub role, and has no cluster-name predicate or numeric selection limit. Each selected member evaluates its own ClusterVersion and health; a blocked member does not make another member wait for fleet-wide compliance.
 
-### 2a. Prepare files in Git
+`ClusterVersion` named `version` is the platform singleton inside each member, not a hardcoded ManagedCluster name.
 
-Copy the `.yaml.example` files to `.yaml` files in a separate test Git path. Do not bulk-apply the directory.
+### Prepare and inspect
 
-Replace every `REPLACE_MANAGED_CLUSTER_NAME` and `REPLACE_TARGET_VERSION`. The cluster and target must match across the approval, admission, trigger, completion, and view files. No target/channel is chosen for you. Keep both approval values `false` initially.
+Use standard self-managed, non-hub OpenShift test clusters. Start with a supported, recommended forward patch within the current minor release. Check installed versions, existing upgrade ownership, recovery/application prerequisites, critical alerts, pool convergence and actual required resource inventory. Resolve or retire competing ClusterCurator/upgrade automation through its supported owner before enabling this path.
 
-```bash
-oc --context="$HUB_CONTEXT" get managedcluster YOUR_TEST_CLUSTER --show-labels
-oc --context="$HUB_CONTEXT" get clustercurator YOUR_TEST_CLUSTER -n YOUR_TEST_CLUSTER -o yaml
-```
-
-The health Placement assumes the ManagedCluster has an existing `name` label equal to its name. Verify it. If absent, select an existing unique label in Git instead. Do not change AutoShift-managed labels imperatively. Verify the resulting PlacementDecision names exactly the intended test cluster.
-
-Leave `spec.disabled: true` in the trigger during preparation.
-
-### 2b. Deploy read-only observation and checks
-
-After reviewing/committing the prepared files, deliver them individually:
+Prepare `REPLACE_APPROVED_CHANNEL` in the channel/target file. Keep both `live-upgrade-channel` and `live-upgrade-trigger` disabled initially. Prepare the exact version and recommended payload for the intended cohort when known; all target placeholders must be resolved before request activation. These static examples use a common approved target/image. Do not assume a single image is valid for incompatible architectures or update paths.
 
 ```bash
-oc --context="$HUB_CONTEXT" get namespace policies
-oc --context="$HUB_CONTEXT" get managedclustersetbinding global -n policies
-oc --context="$HUB_CONTEXT" apply -f base/namespace.yaml
 oc --context="$HUB_CONTEXT" apply -f PATH_TO_PREPARED/01-health-policies.yaml
 oc --context="$HUB_CONTEXT" apply -f PATH_TO_PREPARED/02-spoke-placement.yaml
-oc --context="$HUB_CONTEXT" apply -f PATH_TO_PREPARED/04-observation-views.yaml
 oc --context="$HUB_CONTEXT" apply -f PATH_TO_PREPARED/03-trigger.yaml
-oc --context="$HUB_CONTEXT" apply -f PATH_TO_PREPARED/05-hub-admission.yaml
+oc --context="$HUB_CONTEXT" apply -f PATH_TO_PREPARED/04-channel-and-target.yaml
+oc --context="$HUB_CONTEXT" get placementdecisions -n policies \
+  -l cluster.open-cluster-management.io/placement=live-upgrade-selected -o yaml
+oc --context="$HUB_CONTEXT" get policy live-precheck -n policies -o yaml
 ```
 
-The trigger must still have `disabled: true`. Applying it here creates the hub Placement used by admission without enabling the upgrade. The approval values must still be `false`.
+Verify the decisions match the reviewed opted-in spokes and no old binding bypasses the label selector. An expected cluster with a false/missing label must not be selected. An empty selection does not demonstrate passed checks.
 
-The view resources are created on the hub in the selected managed-cluster namespace. They request read-only observations of remote ClusterVersion, ClusterOperators, and MachineConfigPools. No direct spoke login is required.
+### Channel, target, then request
 
-```bash
-oc --context="$HUB_CONTEXT" get placementdecisions -n policies -o yaml
-oc --context="$HUB_CONTEXT" get policies -n policies
-oc --context="$HUB_CONTEXT" get managedclusterview upgradetesting-version -n YOUR_TEST_CLUSTER -o yaml
-oc --context="$HUB_CONTEXT" get managedclusterview upgradetesting-operators -n YOUR_TEST_CLUSTER -o yaml
-oc --context="$HUB_CONTEXT" get managedclusterview upgradetesting-pools -n YOUR_TEST_CLUSTER -o yaml
-```
+After the selected members' prechecks and the required independent readiness review, enable only `live-upgrade-channel` through Git and deliver the channel/target file. Keep the request disabled while recommendations refresh. If an existing writer or active upgrade is unresolved, do not proceed.
 
-Inspect the view conditions and results. Missing, stale, unknown, empty, or failed observations are not permission to proceed. The absence checks alone can miss missing/Unknown resources; inspect actual inventory and conditions manually.
+Resolve the latest eligible recommendation within the approved channel/boundary once. Pin `REPLACE_TARGET_VERSION` and `REPLACE_APPROVED_RELEASE_IMAGE` consistently in the health, target, and request files, review/commit, and deliver them with the request still disabled. Empty, unsupported, conditional, stale, or unknown recommendations are not permission to force a payload. Where available, use `oc adm upgrade recommend --version=EXACT_VERSION` or an equivalent authorized monitoring review. A direct ClusterVersion write does not prove CLI-side guards ran.
 
-Confirm baseline availability, no degradation/failure, no active upgrade, required pool convergence, and that the target appears in the remote ClusterVersion's `status.availableUpdates`. Perform the application's own readiness/backup checks as applicable. This example does not implement operator compatibility planning or application hooks.
+Inspect per-cluster results for `live-precheck`, `live-upgrade-channel`, and `live-upgrade-target`. They must be Compliant on a member before its request can act. Then explicitly enable `live-upgrade-trigger` through Git and deliver it. The request writes only that member's `ClusterVersion.spec.desiredUpdate`, with an exact version/image and `force: false`.
 
-### 2c. Explicitly activate one upgrade
+Target validation can become unsatisfied after the release is consumed, and strict prechecks can become unsatisfied during normal progress. These are admission states, not automatic proof of a failed upgrade. Preserve independent safety. See [phase lifecycle](docs/policy-lifecycle.md).
 
-The trigger is evaluated on the hub and creates/updates one curator in the explicitly named managed-cluster namespace. Its Placement is **not** the health policy's spoke Placement.
+### Completion and handover
 
-The trigger has a native Policy Dependency on `policies/live-upgrade-admission`. Both admission and trigger run on the local hub. Admission requires:
+Read each selected cluster's actual completion and health evidence through your authorized console, direct context, or existing observation tooling. The Policy result is supporting evidence; a static history-list match does not prove that the latest entry completed. Verify latest CVO history, exact target/image, Available/Progressing/Failing conditions, operator health, actual pool counts/configuration, nodes, and application outcome.
 
-1. The approval ConfigMap to name this exact cluster/target and have `prechecksReviewed: 'true'` and `windowApproved: 'true'`.
-2. A reported `Compliant` entry for this exact cluster in the hub root `policies/live-precheck` Policy's `status.status` list.
-3. The ManagedCluster to report Joined and Available.
+After every member has an accepted/start or explicitly blocked outcome, retire consumed channel/target/request Policies through Git without removing the membership label. All enforcing templates use `pruneObjectBehavior: None`; retiring them does not delete ClusterVersion, cancel work, or roll the platform back. Keep safety and required postchecks selected until outcomes are recorded. Remove opt-in only after that work is resolved.
 
-Admission's second template uses `extraDependencies` on the approval-check ConfigurationPolicy. This is an explicit hub-side observation bridge, not a native dependency across two execution clusters. It reads asynchronously reported status; it does not prove freshness or perform an atomic health-and-start operation. **You still review actual remote evidence manually before approval.**
+There is no automatic retry, queue, target resolver, phase controller, or strict executor-side deadline in these examples. A ten-member selection is not ten-way execution proof; see [customer qualification](docs/customer-cohort.md).
 
-After that review, change both approval values to `'true'` in the prepared `05-hub-admission.yaml`, review/commit, and deliver that file. Verify the local hub's admission result is Compliant and inspect its template messages. If it is Pending, NonCompliant, or Unknown, do not enable the trigger.
+## Governance, remediation and delivery boundaries
 
-Then change only the prepared trigger's `spec.disabled` to `false`, review/commit it, and deliver:
+A root Policy stays listed when disabled. A green check with `1` means one compliant target, not one violation; a dash is not a passed check. The remediation column shows configured mode, and `Source: Local` describes origin rather than cluster selection. One shared root Policy can evaluate on many selected members. See [Governance interpretation](docs/policy-lifecycle.md).
 
-```bash
-oc --context="$HUB_CONTEXT" apply -f PATH_TO_PREPARED/03-trigger.yaml
-```
+Keep health checks under informational roots. Root/binding remediation overrides must never turn a `mustnothave` observation into deletion enforcement. Missing required resources, unknown critical conditions and stale data remain unresolved; lower severity and `ignorePending: true` do not establish readiness.
 
-This can start a real upgrade. The trigger contains only the curator assertion; the failure detectors are in separate informational policies. Verify no binding override changes their remediation. The trigger explicitly sets `pruneObjectBehavior: None`: loss of a dependency must not delete the curator. Loss of admission cannot undo an intent or stop an upgrade that has already started.
+`argocd/` contains partial delivery examples. Sync windows permit delivery; they do not create another target each week, expire a lock/label, guarantee when CVO starts, or cancel already-delivered intent. Keep both namespace permissions and explicit target selection under review. See [design boundaries](docs/design.md).
 
-### 2d. Verify actual completion from the hub
+## Validation and privacy
 
-```bash
-oc --context="$HUB_CONTEXT" get clustercurator YOUR_TEST_CLUSTER -n YOUR_TEST_CLUSTER -o yaml
-oc --context="$HUB_CONTEXT" get jobs -n YOUR_TEST_CLUSTER
-oc --context="$HUB_CONTEXT" get policies -n policies
-oc --context="$HUB_CONTEXT" get managedclusterview upgradetesting-version -n YOUR_TEST_CLUSTER -o yaml
-oc --context="$HUB_CONTEXT" get managedclusterview upgradetesting-operators -n YOUR_TEST_CLUSTER -o yaml
-oc --context="$HUB_CONTEXT" get managedclusterview upgradetesting-pools -n YOUR_TEST_CLUSTER -o yaml
-```
+Render the synthetic scenarios with `oc kustomize overlays/SCENARIO`. Static parsing and rendering do not validate real admission, update execution, concurrency, or start deadlines. Rehearse label opt-in, false/missing-label exclusion, failure isolation, removal behavior, and the intended ten-way concurrency in the target environment.
 
-Do not equate curator existence, successful policy enforcement, or Argo Synced with completion. Verify:
-
-- The latest ClusterVersion history entry, not just any historical entry, is the intended version with state `Completed`.
-- ClusterVersion desired version is correct; `Available=True`, `Progressing=False`, and `Failing=False`.
-- Required ClusterOperators are available and not degraded, and their rollout has settled.
-- Required MachineConfigPools are updated, not updating/degraded/paused, and ready/updated counts equal machine counts.
-- Curator/Job outcomes and independent application checks do not report an unresolved failure.
-
-Completion noncompliance during a normal rollout is expected. Degraded/unavailable/failing observations still require investigation. Severity only prioritizes findings; it does not hide them.
-
-### 2e. Stop further reconciliation after the test
-
-Set the trigger back to disabled through Git and deliver the change. Revoke both approval values through Git as well. Neither action cancels an active upgrade or rolls back the platform. Do not delete/recreate a curator to retry or clean up while execution is unresolved. Do not delete the managed-cluster namespace or shared `policies` namespace. Retain the results for review.
-
-## Argo CD
-
-`argocd/` contains partial examples for an existing test project and Application. Review names, paths, permissions, and the installed version's window behavior. Do not replace existing project permissions with the snippets.
-
-Only the demo overlay belongs in the first Argo Application. Keep the real trigger outside automated discovery until its exact target and manual process are reviewed.
-
-The demo contains resources in both `policies` and `upgradetesting`, plus the demo Namespace resource. The existing AppProject and Argo service account must permit those destinations/resource kinds. Explicit resource namespaces are intentional; do not add a Kustomize namespace override that moves every resource into one namespace.
-
-An open window allows delivery. It does not expire the lock, guarantee a CVO start time, or stop an already-running upgrade. A lock-closing Git change can itself wait behind a closed sync window. Strict deadlines require executor-side enforcement and are not claimed here.
-
-## Validation status
-
-All scenarios can be rendered locally with `oc kustomize overlays/SCENARIO`. YAML/render inspection is not live admission, policy propagation, or upgrade validation. Qualify the actual ACM/controller behavior, including the hub-side status bridge and access to root Policies, in the intended environment. This public repository does not establish ten-way parallel upgrade capacity or strict executor-side start deadlines.
-
-Keep credentials, kubeconfigs, cluster endpoints, recovery files, and environment-specific test evidence outside public Git. Use placeholders in shared examples. Private execution records are not part of this repository's public validation claims.
-
-If you deployed the previous revision, moving a resource's namespace does not remove its old copy. Follow the [migration instructions](docs/policy-dependencies.md#migrating-an-earlier-checkout) before applying this revision.
+Keep credentials, kubeconfigs, cluster endpoints, recovery files and private test evidence outside public Git. This repository publishes generic patterns, not private execution records.

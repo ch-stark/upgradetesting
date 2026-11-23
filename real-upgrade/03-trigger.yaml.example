@@ -7,61 +7,44 @@ spec:
   disabled: true
   remediationAction: enforce
   policy-templates:
-  - objectDefinition:
+  - ignorePending: false
+    objectDefinition:
       apiVersion: policy.open-cluster-management.io/v1
       kind: ConfigurationPolicy
       metadata:
-        name: live-upgrade-trigger
+        name: live-upgrade-trigger-check
       spec:
         remediationAction: enforce
         severity: high
+        pruneObjectBehavior: None
         evaluationInterval:
           compliant: 30s
           noncompliant: 10s
         object-templates:
         - complianceType: musthave
           objectDefinition:
-            apiVersion: cluster.open-cluster-management.io/v1beta1
-            kind: ClusterCurator
+            apiVersion: config.openshift.io/v1
+            kind: ClusterVersion
             metadata:
-              name: REPLACE_MANAGED_CLUSTER_NAME
-              namespace: REPLACE_MANAGED_CLUSTER_NAME
+              name: version
             spec:
-              desiredCuration: upgrade
-              upgrade:
-                desiredUpdate: REPLACE_TARGET_VERSION
-                monitorTimeout: 180
-        pruneObjectBehavior: None
-    ignorePending: false
+              desiredUpdate:
+                version: REPLACE_TARGET_VERSION
+                image: REPLACE_APPROVED_RELEASE_IMAGE
+                force: false
   dependencies:
   - apiVersion: policy.open-cluster-management.io/v1
     kind: Policy
     namespace: policies
-    name: live-upgrade-admission
+    name: live-precheck
     compliance: Compliant
----
-apiVersion: cluster.open-cluster-management.io/v1beta1
-kind: Placement
-metadata:
-  name: live-trigger-on-hub
-  namespace: policies
-spec:
-  predicates:
-  - requiredClusterSelector:
-      labelSelector:
-        matchLabels:
-          local-cluster: 'true'
----
-apiVersion: policy.open-cluster-management.io/v1
-kind: PlacementBinding
-metadata:
-  name: live-trigger-on-hub
-  namespace: policies
-placementRef:
-  apiGroup: cluster.open-cluster-management.io
-  kind: Placement
-  name: live-trigger-on-hub
-subjects:
-- apiGroup: policy.open-cluster-management.io
-  kind: Policy
-  name: live-upgrade-trigger
+  - apiVersion: policy.open-cluster-management.io/v1
+    kind: Policy
+    namespace: policies
+    name: live-upgrade-channel
+    compliance: Compliant
+  - apiVersion: policy.open-cluster-management.io/v1
+    kind: Policy
+    namespace: policies
+    name: live-upgrade-target
+    compliance: Compliant

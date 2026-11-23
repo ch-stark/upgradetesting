@@ -26,7 +26,7 @@ The following is a proposed operating pattern. It is not an automatic transition
 4. **Close consumed admission:** after every member has an accepted/start or explicitly blocked outcome, retire consumed requests and admission checks through their owning Git configuration. Do not disable a shared gate when only the first member has started. Preserve non-pruning behavior for platform objects and verify generated resources actually reflect the intended change.
 5. **Observe:** keep independent safety monitoring active. Do not remove its placement when withdrawing admission opt-in. Missing or stale required signals remain unresolved.
 6. **Verify:** activate final postchecks when their phase is due. Once active, completion must not depend on an open maintenance window or a still-Compliant precheck. Disabled postchecks are not counted as passed.
-7. **Handover:** retain appropriate informational health/completion checks; leave further upgrade intent disabled until another reviewed change authorizes it.
+7. **Handover:** retain appropriate informational health/completion checks; leave further upgrade intent disabled until another reviewed change authorizes it. Remove membership opt-in only after required monitoring/outcomes are resolved.
 
 Disabling a Policy does not retract intent already accepted by another controller. `pruneObjectBehavior: None` preserves managed objects when checking/enforcing templates are retired; it is not a cancellation mechanism. Never treat removal of a Policy as a platform downgrade or safe deletion of an active execution object.
 

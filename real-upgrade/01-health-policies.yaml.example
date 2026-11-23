@@ -19,6 +19,62 @@ spec:
           compliant: 30s
           noncompliant: 10s
         object-templates:
+        - complianceType: musthave
+          objectDefinition:
+            apiVersion: config.openshift.io/v1
+            kind: ClusterVersion
+            metadata:
+              name: version
+            status:
+              conditions:
+              - type: Available
+                status: 'True'
+              - type: Progressing
+                status: 'False'
+              - type: Failing
+                status: 'False'
+        - complianceType: musthave
+          objectDefinition:
+            apiVersion: config.openshift.io/v1
+            kind: ClusterOperator
+            metadata:
+              name: etcd
+            status:
+              conditions:
+              - type: Available
+                status: 'True'
+              - type: Degraded
+                status: 'False'
+              - type: Progressing
+                status: 'False'
+        - complianceType: musthave
+          objectDefinition:
+            apiVersion: config.openshift.io/v1
+            kind: ClusterOperator
+            metadata:
+              name: kube-apiserver
+            status:
+              conditions:
+              - type: Available
+                status: 'True'
+              - type: Degraded
+                status: 'False'
+              - type: Progressing
+                status: 'False'
+        - complianceType: musthave
+          objectDefinition:
+            apiVersion: config.openshift.io/v1
+            kind: ClusterOperator
+            metadata:
+              name: machine-config
+            status:
+              conditions:
+              - type: Available
+                status: 'True'
+              - type: Degraded
+                status: 'False'
+              - type: Progressing
+                status: 'False'
         - complianceType: mustnothave
           objectDefinition:
             apiVersion: config.openshift.io/v1
@@ -35,6 +91,7 @@ spec:
               conditions:
               - type: Available
                 status: 'False'
+        pruneObjectBehavior: None
     ignorePending: false
   - objectDefinition:
       apiVersion: policy.open-cluster-management.io/v1
@@ -56,6 +113,7 @@ spec:
               conditions:
               - type: Degraded
                 status: 'True'
+        pruneObjectBehavior: None
     ignorePending: false
 ---
 apiVersion: policy.open-cluster-management.io/v1
@@ -79,6 +137,18 @@ spec:
           compliant: 30s
           noncompliant: 10s
         object-templates:
+        - complianceType: musthave
+          objectDefinition:
+            apiVersion: config.openshift.io/v1
+            kind: ClusterVersion
+            metadata:
+              name: version
+            status:
+              conditions:
+              - type: Available
+                status: 'True'
+              - type: Failing
+                status: 'False'
         - complianceType: mustnothave
           objectDefinition:
             apiVersion: config.openshift.io/v1
@@ -105,6 +175,7 @@ spec:
               conditions:
               - type: Failing
                 status: 'True'
+        pruneObjectBehavior: None
     ignorePending: false
 ---
 apiVersion: policy.open-cluster-management.io/v1
@@ -137,9 +208,7 @@ spec:
             status:
               desired:
                 version: REPLACE_TARGET_VERSION
-              history:
-              - version: REPLACE_TARGET_VERSION
-                state: Completed
+                image: REPLACE_APPROVED_RELEASE_IMAGE
               conditions:
               - type: Available
                 status: 'True'
@@ -147,6 +216,7 @@ spec:
                 status: 'False'
               - type: Failing
                 status: 'False'
+        pruneObjectBehavior: None
     ignorePending: false
   - objectDefinition:
       apiVersion: policy.open-cluster-management.io/v1
@@ -184,4 +254,5 @@ spec:
               conditions:
               - type: Degraded
                 status: 'True'
+        pruneObjectBehavior: None
     ignorePending: false

@@ -1,47 +1,49 @@
 # Manual acceptance checklist
 
-Record the hub ACM/MCE/OpenShift versions, Git commit, selected cluster, exact target, and observed results. Do not commit tokens or kubeconfigs.
+Record installed versions, source commit, label membership, exact targets and outcomes privately. Do not commit credentials, kubeconfigs or environment-specific execution records.
 
-## Hub-only demo
+## Label selection
 
-- [ ] Root resources are in `policies`; synthetic objects are in `upgradetesting`.
-- [ ] Shared `policies` namespace and `global` binding already exist and are not owned/deleted by the demo.
-- [ ] PlacementDecision selects the registered local hub.
-- [ ] All five root policies and their templates are informational.
-- [ ] Closed admission is noncompliant without hiding progress-safety results.
-- [ ] Progressing produces incomplete completion/steady-state results.
-- [ ] A synthetic degradation is visible in progress safety.
-- [ ] Stale observations fail safety/prechecks; deferred admission is not success.
-- [ ] Blocked precheck leaves admission's template Pending with a Policy dependency message.
-- [ ] Completion template 2 waits on completion template 1 via ConfigurationPolicy extraDependencies.
-- [ ] Every template has `ignorePending: false`; blocked is not treated as passed.
-- [ ] Completion can pass while admission is closed.
-- [ ] No ClusterCurator or ClusterVersion mutation was created by the demo.
+- [ ] Root resources are in `policies`; the appropriate cluster set is bound to it.
+- [ ] Membership comes from the exact bare label `shouldupgrade: "true"` in its owning Git source.
+- [ ] Missing, false, and differently cased values do not select a member.
+- [ ] The marked local hub is excluded from real upgrades even when opted into the synthetic demo.
+- [ ] No ManagedCluster name is hardcoded in selectors or the actuator; no first-member numeric limit is present.
+- [ ] PlacementDecisions match all reviewed eligible opted-in spokes; no extra binding bypasses the selector.
+- [ ] At most ten members are opted in for the customer cohort; this is reviewed membership, not an automatic concurrency cap.
+- [ ] Existing older deployments completed the label/backend migration before activation.
 
-## Optional real upgrade
+## Synthetic hub demo
 
-- [ ] Separate standard managed test cluster; not the hub.
-- [ ] Every placeholder replaced in reviewed Git files.
-- [ ] Health PlacementDecision names exactly that cluster.
-- [ ] Existing curator and competing writers reviewed; no active operation, hooks, or custom override.
-- [ ] Remote view conditions/results are usable and actual resources are present.
-- [ ] Exact forward patch is recommended for that cluster.
-- [ ] Prechecks and independent readiness checks reviewed before enabling the trigger.
-- [ ] Hub admission and trigger select only the local hub; remote health checks select only the intended spoke.
-- [ ] Approval initially false; exact target/cluster agree across all prepared files.
-- [ ] Hub admission reads this cluster's Compliant entry in `policies/live-precheck.status.status` and Joined/Available conditions.
-- [ ] Admission template access and actual installed controller behavior verified; missing or stale evidence is not accepted.
-- [ ] Native trigger dependency names `policies/live-upgrade-admission`; admission Compliant before activation.
-- [ ] Only the curator assertion is in an enforcing policy.
-- [ ] Curator ConfigurationPolicy uses `pruneObjectBehavior: None`; loss of admission is not cancellation/deletion.
-- [ ] Latest CVO history confirms the exact target Completed.
-- [ ] Operators, pools, counts, curator outcome, and application checks reviewed.
-- [ ] Trigger disabled and both approval flags revoked afterward through Git; active work is not deleted or cancelled.
+- [ ] The local hub has both the membership and local-hub role labels.
+- [ ] Synthetic ConfigMaps remain in `upgradetesting`; shared `policies` namespace/binding are not owned/deleted by the demo.
+- [ ] All demo Policies/templates are informational and change no real upgrade target.
+- [ ] Failed precheck leaves admission Pending via a Policy dependency.
+- [ ] Completion template 2 waits on template 1 via ConfigurationPolicy extraDependencies.
+- [ ] `ignorePending: false`; Pending is not counted as a passed check.
+- [ ] Safety remains independent during injected failure or closed admission.
+- [ ] Completion can pass with the synthetic admission lock closed.
 
-## Argo integration, if used
+## Real native CVO path
 
-- [ ] Test Application points only to a demo overlay.
-- [ ] Matching AppProject window and any manual overrides inspected.
-- [ ] Argo can deliver explicit resources into both `policies` and `upgradetesting`, including the test Namespace; no blanket namespace rewrite.
-- [ ] Closed-window Git change waits; permitted delivery is observable.
-- [ ] No claim that lock expiry/deletion or a strict execution deadline is automatic.
+- [ ] Selected members are standard self-managed, non-hub test clusters with usable policy add-ons.
+- [ ] Previous curator/upgrade ownership is resolved; no competing active or queued writer remains.
+- [ ] Channel and trigger start disabled; prepared values and recommended update paths are reviewed.
+- [ ] Required resource presence, usable conditions, critical alerts, pools, backup/application readiness and observation freshness are reviewed for every member.
+- [ ] Channel preparation runs while the upgrade trigger stays disabled.
+- [ ] Exact version and recommended payload are pinned consistently in health, target and request manifests.
+- [ ] Each member's precheck, channel and exact-target Policies must be Compliant locally before its trigger can act.
+- [ ] One blocked member does not hold another eligible member through a fleet-wide delivery barrier.
+- [ ] The request contains only ClusterVersion desiredUpdate with `force: false`; no health observation is under an enforcing root.
+- [ ] Platform templates use `pruneObjectBehavior: None`; dependency loss is not deletion or cancellation.
+- [ ] Keep `shouldupgrade: "true"` through required safety/postchecks; do not use removal as a stop command.
+- [ ] Latest CVO history confirms the exact target Completed; current conditions, actual operator/pool inventory, nodes and application outcomes agree.
+- [ ] Consumed channel/target/request disabled through their owner; membership removed only after outcomes and monitoring needs are resolved.
+
+## Qualification and delivery
+
+- [ ] All policy definitions can be delivered without a global health barrier that serializes the cohort unintentionally.
+- [ ] Ten real eligible CVO updates overlap before making the capacity claim; an unlabelled non-member remains untouched.
+- [ ] Label removal, stale/unknown evidence, controller restart and repeated delivery have defined, verified outcomes.
+- [ ] Argo examples deploy only the intended path; namespace permissions and manual overrides are reviewed.
+- [ ] No claim that a label or delivery window enforces an exact downstream start deadline or cancels work.

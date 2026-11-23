@@ -9,6 +9,7 @@ spec:
       labelSelector:
         matchLabels:
           local-cluster: 'true'
+          shouldupgrade: 'true'
 ---
 apiVersion: policy.open-cluster-management.io/v1
 kind: PlacementBinding
