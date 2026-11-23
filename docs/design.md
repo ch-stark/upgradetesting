@@ -2,7 +2,9 @@
 
 ## Reuse
 
-Git stores intent. Argo CD can gate delivery. ACM expresses checks and the explicitly enabled curator intent. ClusterCurator and CVO perform the real upgrade. There is no new scheduling service, templating layer, or API.
+Git stores intent and Argo CD can gate delivery. The proposed customer path reuses AutoShift's existing native CVO upgrade flow and adds only the required local health gates. This repository packages a synthetic demo and a separate ClusterCurator reference example; it does not install that AutoShift integration. Select one upgrade writer per cluster. There is no new scheduling service, templating layer, or API.
+
+The customer design scope is one explicit cohort of up to ten non-hub clusters, with exact targets approved in Git. This does not require a fleet queue, and it does not establish a global active-upgrade limit. See [customer cohort design](customer-cohort.md) for operating scope and acceptance criteria.
 
 ## Hub lock
 
@@ -20,6 +22,8 @@ It cannot invalidate an upgrade instruction already delivered to a spoke. Hub-si
 
 Native ACM compliance does not gain a new Upgrading value. Read the phase and the underlying findings. A green admission/progress policy is not upgrade success.
 
+Root Policy existence, placement, activation, evaluation, and execution completion are distinct. An attended profile may retire consumed admission Policies while preserving independent safety checks and running postchecks when due. Disabled and Pending do not mean passed. This lifecycle needs explicit wiring in the owning Git source; it is not automatic in these examples. See [policy lifecycle](policy-lifecycle.md).
+
 Root Policies and placement resources live in the existing `policies` namespace. Test data lives in `upgradetesting`. The shared namespace and its cluster-set binding are prerequisites, not resources owned by this demo. See [Policy Dependency implementation](policy-dependencies.md) for execution locations, native dependency fields, and manual tests.
 
 ## Remediation separation
@@ -32,7 +36,7 @@ No postcheck uses a deleted lock or a fallback target. The target is explicit st
 
 One explicit managed test cluster, one exact recommended same-minor patch, manual precheck approval, dependency-gated activation, manual verification. The hub admission policy observes the remote precheck's per-cluster root status; this asynchronous bridge does not establish evidence freshness or an atomic start decision. No Ansible hooks, EUS orchestration, fleet queue, automatic retry, or rollback. Existing curator ownership and lifecycle must be reviewed before applying intent.
 
-This is a concept repository, not a supported product promise or evidence of 100-cluster capacity.
+This is a concept repository, not a supported product promise or evidence of ten-way parallel execution. Qualify a real managed-cluster upgrade, failure isolation, and then a ten-member overlapping run before a customer capacity claim. Strict downstream start-window enforcement remains a separate requirement.
 
 ## References
 

@@ -1,15 +1,18 @@
-# OpenShift upgrade testing: first concept
+# OpenShift upgrade policies: concepts and manual examples
 
 Plain YAML for manual testing from a Red Hat Advanced Cluster Management hub. No Go templates, Python runner, Ansible dependency, new CRD, or custom controller.
 
-There are two separate paths:
+This repository contains two separate example paths and a customer design proposal:
 
 | Path | Purpose | Changes a real upgrade target? |
 |---|---|---|
 | `overlays/` | Demonstrate policy phases using synthetic ConfigMap data on the local hub | No |
 | `real-upgrade/` | Manually test one managed test cluster using ClusterCurator and informational health policies | Only after editing and explicitly enabling the disabled trigger |
+| [Customer cohort design](docs/customer-cohort.md) | Proposed AutoShift-first journey for one Git-approved cohort of up to ten clusters | Documentation only; no additional upgrade executor is installed |
 
 **If the hub is your only cluster, use the demo. A real upgrade needs a separate managed test cluster. Do not use the hub as the upgrade target.**
+
+The proposed customer path reuses AutoShift's existing CVO upgrade flow, with local Policy Dependencies and exact targets approved in Git. The ClusterCurator example is a separate alternative, not a second writer to enable alongside that flow. AutoShift integration and ten-cluster capacity are not established by the example manifests. See the [customer design and acceptance criteria](docs/customer-cohort.md).
 
 ## Important corrections to the initial draft
 
@@ -21,6 +24,23 @@ There are two separate paths:
 - Lower severity does not suppress native ACM noncompliance. Completion can remain NonCompliant while an upgrade progresses normally.
 
 See [design boundaries](docs/design.md) and [manual acceptance checklist](docs/manual-checklist.md).
+
+## Why only some Policies have cluster results
+
+A root Policy remains listed in Governance even when it is disabled. A PlacementBinding can still reference it, but `spec.disabled: true` prevents propagation for evaluation. Its configured remediation mode can still read `enforce`; that does not mean it is currently enforcing.
+
+An attended upgrade profile can leave informational baseline, safety, and completion checks active after the run, while retiring consumed channel/target/request Policies. Earlier synthetic scenarios should be kept separate from real health checks. A disabled or deferred check is **not a passed check**.
+
+In Governance, a green check with `1` means one compliant cluster, not one violation. A dash is not a compliance pass; disabled Policies, empty selection, or missing evaluation can produce no current result. If a Policy should be active, inspect its disabled flag, PlacementDecisions, add-on health, and replicated-policy details. `Source: Local` describes the Policy's origin, not its cluster selection.
+
+```bash
+HUB_CONTEXT='your-hub-context'
+oc --context="$HUB_CONTEXT" get policies -n policies \
+  -o custom-columns=NAME:.metadata.name,DISABLED:.spec.disabled,MODE:.spec.remediationAction
+oc --context="$HUB_CONTEXT" get placementdecisions -n policies -o yaml
+```
+
+One root Policy can evaluate on multiple clusters. A ten-cluster cohort does not require ten copies of every root Policy. The synthetic overlays in this repository intentionally enable all their demo checks; they do not automatically implement phase retirement. See [policy lifecycle and Governance interpretation](docs/policy-lifecycle.md) before changing activation in a real profile.
 
 ## Policy Dependency and namespaces
 
@@ -219,6 +239,8 @@ An open window allows delivery. It does not expire the lock, guarantee a CVO sta
 
 ## Validation status
 
-All scenarios can be rendered locally with `oc kustomize overlays/SCENARIO`. YAML/render inspection is not live admission, policy propagation, or upgrade validation. The actual ACM/controller behavior, including the hub-side status bridge and access to root Policies, must be checked manually on the test hub.
+All scenarios can be rendered locally with `oc kustomize overlays/SCENARIO`. YAML/render inspection is not live admission, policy propagation, or upgrade validation. Qualify the actual ACM/controller behavior, including the hub-side status bridge and access to root Policies, in the intended environment. This public repository does not establish ten-way parallel upgrade capacity or strict executor-side start deadlines.
+
+Keep credentials, kubeconfigs, cluster endpoints, recovery files, and environment-specific test evidence outside public Git. Use placeholders in shared examples. Private execution records are not part of this repository's public validation claims.
 
 If you deployed the previous revision, moving a resource's namespace does not remove its old copy. Follow the [migration instructions](docs/policy-dependencies.md#migrating-an-earlier-checkout) before applying this revision.
